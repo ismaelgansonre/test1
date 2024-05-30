@@ -12,6 +12,7 @@ import (
 func main() {
 	// Initialize the database
 	db.InitDB()
+	defer db.CloseDB()
 
 	// Serve static files
 	fs := http.FileServer(http.Dir("./static"))

@@ -2,7 +2,7 @@ package db
 
 import (
 	"log"
-	"os"
+	//"os"
 	"sync"
 
 	"go.etcd.io/bbolt"

@@ -4,6 +4,40 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Person Management</title>
+    <style>
+        .modal {
+            display: none; 
+            position: fixed;
+            z-index: 1; 
+            padding-top: 60px;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%; 
+            overflow: auto; 
+            background-color: rgb(0,0,0);
+            background-color: rgba(0,0,0,0.4); 
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: 5% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%; 
+        }
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+        }
+        .close:hover,
+        .close:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+    </style>
 </head>
 <body>
     <h1>Person Management</h1>
@@ -42,6 +76,21 @@
     <h2>Protected Route Data</h2>
     <button id="fetchProtectedData">Fetch Data</button>
     <pre id="protectedData"></pre>
+
+    <!-- Modal -->
+    <div id="authModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>Admin Authentication</h2>
+            <form id="authForm">
+                <label for="username">Username:</label>
+                <input type="text" id="username" name="username" required><br><br>
+                <label for="password">Password:</label>
+                <input type="password" id="password" name="password" required><br><br>
+                <button type="submit">Authenticate</button>
+            </form>
+        </div>
+    </div>
 
     <script>
         const personTable = document.getElementById('personTable').getElementsByTagName('tbody')[0];
@@ -130,10 +179,33 @@
             });
         });
 
-        document.getElementById('fetchProtectedData').addEventListener('click', function() {
+        const fetchProtectedDataButton = document.getElementById('fetchProtectedData');
+        const authModal = document.getElementById('authModal');
+        const authForm = document.getElementById('authForm');
+        const closeSpan = document.getElementsByClassName('close')[0];
+
+        fetchProtectedDataButton.onclick = function() {
+            authModal.style.display = 'block';
+        };
+
+        closeSpan.onclick = function() {
+            authModal.style.display = 'none';
+        };
+
+        window.onclick = function(event) {
+            if (event.target == authModal) {
+                authModal.style.display = 'none';
+            }
+        };
+
+        authForm.onsubmit = function(event) {
+            event.preventDefault();
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+
             fetch('/protected', {
                 headers: {
-                    'Authorization': 'Basic ' + btoa('admin:password')
+                    'Authorization': 'Basic ' + btoa(username + ':' + password)
                 }
             })
             .then(response => {
@@ -143,14 +215,14 @@
                 return response.json();
             })
             .then(data => {
-                if (data) {
-                    document.getElementById('protectedData').textContent = JSON.stringify(data, null, 2);
-                }
+                authModal.style.display = 'none';
+                document.getElementById('protectedData').textContent = JSON.stringify(data, null, 2);
             })
             .catch(error => {
+                alert('Authentication failed.');
                 console.error('Error:', error);
             });
-        });
+        };
     </script>
 </body>
 </html>

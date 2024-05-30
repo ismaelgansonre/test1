@@ -2,11 +2,20 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 
+	"go.etcd.io/bbolt"
 	"test1/db"
 	"test1/models"
 	"test1/utils"
+)
+
+// ANSI color codes
+const (
+	Reset  = "\033[0m"
+	Red    = "\033[31m"
+	Green  = "\033[32m"
 )
 
 // Handler for creating a new person
@@ -23,28 +32,33 @@ func CreatePersonHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	db.Mutex.Lock() // Lock the mutex before accessing the database
-	defer db.Mutex.Unlock() // Unlock the mutex after accessing the database
+	db.Mutex.Lock()
+	defer db.Mutex.Unlock()
 
-	// Check if the person already exists
-	var exists bool
-	err = db.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM person WHERE name = ?)", p.Name).Scan(&exists)
+	err = db.DB.Update(func(tx *bbolt.Tx) error {
+		b := tx.Bucket([]byte("persons"))
+		if b.Get([]byte(p.Name)) != nil {
+			return &utils.AppError{StatusCode: http.StatusConflict, Message: "Person already exists"}
+		}
+		data, err := json.Marshal(p)
+		if err != nil {
+			return err
+		}
+		return b.Put([]byte(p.Name), data)
+	})
+
 	if err != nil {
-		http.Error(w, "Database error", http.StatusInternalServerError)
+		if appErr, ok := err.(*utils.AppError); ok {
+			fmt.Printf("%sError: %s (status code: %d)%s\n", Red, appErr.Message, appErr.StatusCode, Reset)
+			http.Error(w, appErr.Message, appErr.StatusCode)
+		} else {
+			fmt.Printf("%sError: Failed to create person (status code: %d)%s\n", Red, http.StatusInternalServerError, Reset)
+			http.Error(w, "Failed to create person", http.StatusInternalServerError)
+		}
 		return
 	}
 
-	if exists {
-		http.Error(w, "Person already exists", http.StatusConflict)
-		return
-	}
-
-	_, err = db.DB.Exec("INSERT INTO person (name, age) VALUES (?, ?)", p.Name, p.Age)
-	if err != nil {
-		http.Error(w, "Failed to create person", http.StatusInternalServerError)
-		return
-	}
-
+	fmt.Printf("%sUser added successfully%s\n", Green, Reset)
 	utils.SendJSONResponse(w, http.StatusCreated, p)
 }
 
@@ -62,27 +76,40 @@ func UpdatePersonAgeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	db.Mutex.Lock() // Lock the mutex before accessing the database
-	defer db.Mutex.Unlock() // Unlock the mutex after accessing the database
+	db.Mutex.Lock()
+	defer db.Mutex.Unlock()
 
-	// Check if the person exists
-	var exists bool
-	err = db.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM person WHERE name = ?)", update.Name).Scan(&exists)
+	err = db.DB.Update(func(tx *bbolt.Tx) error {
+		b := tx.Bucket([]byte("persons"))
+		personData := b.Get([]byte(update.Name))
+		if personData == nil {
+			return &utils.AppError{StatusCode: http.StatusNotFound, Message: "Person not found"}
+		}
+
+		var person models.Person
+		if err := json.Unmarshal(personData, &person); err != nil {
+			return err
+		}
+		person.Age = update.Age
+
+		data, err := json.Marshal(person)
+		if err != nil {
+			return err
+		}
+		return b.Put([]byte(person.Name), data)
+	})
+
 	if err != nil {
-		http.Error(w, "Database error", http.StatusInternalServerError)
+		if appErr, ok := err.(*utils.AppError); ok {
+			fmt.Printf("%sError: %s (status code: %d)%s\n", Red, appErr.Message, appErr.StatusCode, Reset)
+			http.Error(w, appErr.Message, appErr.StatusCode)
+		} else {
+			fmt.Printf("%sError: Failed to update person (status code: %d)%s\n", Red, http.StatusInternalServerError, Reset)
+			http.Error(w, "Failed to update person", http.StatusInternalServerError)
+		}
 		return
 	}
 
-	if !exists {
-		http.Error(w, "Person not found", http.StatusNotFound)
-		return
-	}
-
-	_, err = db.DB.Exec("UPDATE person SET age = ? WHERE name = ?", update.Age, update.Name)
-	if err != nil {
-		http.Error(w, "Failed to update person", http.StatusInternalServerError)
-		return
-	}
-
+	fmt.Printf("%sUser updated successfully%s\n", Green, Reset)
 	utils.SendJSONResponse(w, http.StatusOK, update)
 }
