@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Person Management</title>
+</head>
+<body>
+    <h1>Person Management</h1>
+    
+    <h2>Create Person</h2>
+    <form id="createPersonForm">
+        <label for="name">Name:</label>
+        <input type="text" id="name" name="name" required><br><br>
+        <label for="age">Age:</label>
+        <input type="number" id="age" name="age" required><br><br>
+        <button type="submit">Create Person</button>
+    </form>
+
+    <h2>Update Person Age</h2>
+    <form id="updatePersonForm">
+        <label for="updateName">Name:</label>
+        <input type="text" id="updateName" name="updateName" required><br><br>
+        <label for="updateAge">Age:</label>
+        <input type="number" id="updateAge" name="updateAge" required><br><br>
+        <button type="submit">Update Age</button>
+    </form>
+
+    <h2>Person List</h2>
+    <table id="personTable" border="1">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Age</th>
+            </tr>
+        </thead>
+        <tbody>
+            <!-- Rows will be added here dynamically -->
+        </tbody>
+    </table>
+
+    <h2>Protected Route Data</h2>
+    <button id="fetchProtectedData">Fetch Data</button>
+    <pre id="protectedData"></pre>
+
+    <script>
+        const personTable = document.getElementById('personTable').getElementsByTagName('tbody')[0];
+
+        function addOrUpdatePersonInTable(person) {
+            // Check if the person already exists in the table
+            let existingRow = Array.from(personTable.rows).find(row => row.cells[0].textContent === person.name);
+
+            if (existingRow) {
+                // Update the existing row
+                existingRow.cells[1].textContent = person.age;
+            } else {
+                // Add a new row
+                const row = personTable.insertRow();
+                const nameCell = row.insertCell(0);
+                const ageCell = row.insertCell(1);
+
+                nameCell.textContent = person.name;
+                ageCell.textContent = person.age;
+            }
+        }
+
+        document.getElementById('createPersonForm').addEventListener('submit', function(event) {
+            event.preventDefault();
+            const name = document.getElementById('name').value;
+            const age = document.getElementById('age').value;
+            fetch('/create_person', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ name: name, age: parseInt(age) })
+            })
+            .then(response => {
+                if (!response.ok) {
+                    if (response.status === 409) {
+                        alert('Person already exists.');
+                    } else {
+                        throw new Error('Network response was not ok ' + response.statusText);
+                    }
+                    return null;
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data) {
+                    alert('Person created: ' + JSON.stringify(data));
+                    addOrUpdatePersonInTable(data); // Add or update the person in the table
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+            });
+        });
+
+        document.getElementById('updatePersonForm').addEventListener('submit', function(event) {
+            event.preventDefault();
+            const name = document.getElementById('updateName').value;
+            const age = document.getElementById('updateAge').value;
+            fetch('/update_person_age', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ name: name, age: parseInt(age) })
+            })
+            .then(response => {
+                if (!response.ok) {
+                    if (response.status === 404) {
+                        alert('Person not found.');
+                    } else {
+                        throw new Error('Network response was not ok ' + response.statusText);
+                    }
+                    return null;
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data) {
+                    alert('Person updated: ' + JSON.stringify(data));
+                    addOrUpdatePersonInTable(data); // Add or update the person in the table
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+            });
+        });
+
+        document.getElementById('fetchProtectedData').addEventListener('click', function() {
+            fetch('/protected', {
+                headers: {
+                    'Authorization': 'Basic ' + btoa('admin:password')
+                }
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok ' + response.statusText);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data) {
+                    document.getElementById('protectedData').textContent = JSON.stringify(data, null, 2);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+            });
+        });
+    </script>
+</body>
+</html>
